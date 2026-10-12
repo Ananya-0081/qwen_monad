@@ -171,7 +171,7 @@ function ProofAnalytics() {
   useEffect(() => { load(); }, []);
 
   if (loading && !data) return null;
-  if (error) return <div className="panel muted" style={{ marginTop: '2rem' }}><AlertTriangle size={14}/> {error}</div>;
+  if (error) return <div className="panel muted" style={{ marginTop: '2rem' }}><AlertTriangle size={14} /> {error}</div>;
 
   return (
     <section className="analytics panel" style={{ marginTop: '2rem', padding: '2rem' }}>
@@ -372,7 +372,7 @@ function ProofExplorer({ onVerifyProof }) {
   useEffect(() => { load(); }, []);
 
   if (loading && !data) return <div className="muted" style={{ padding: '2rem' }}>Loading Explorer...</div>;
-  
+
   if (error) {
     return (
       <section className="explorer" style={{ marginTop: '3rem', padding: '2rem', border: '1px solid var(--border)', borderRadius: '8px' }}>
@@ -403,7 +403,7 @@ function ProofExplorer({ onVerifyProof }) {
         </div>
         <button className="btn" onClick={load}><RefreshCw size={12} /> Refresh Feed</button>
       </div>
-      
+
       {data.length === 0 ? (
         <p className="muted">No proofs indexed yet.</p>
       ) : (
@@ -412,7 +412,7 @@ function ProofExplorer({ onVerifyProof }) {
             <article key={r.proofHash} className="tcard" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', alignItems: 'center', padding: '1rem 1.5rem' }}>
               <div>
                 <small>Proof Hash</small>
-                <code style={{display:'block'}}>{clip(r.proofHash)}</code>
+                <code style={{ display: 'block' }}>{clip(r.proofHash)}</code>
               </div>
               <div>
                 <small>Source ID</small>
@@ -421,7 +421,7 @@ function ProofExplorer({ onVerifyProof }) {
               <div>
                 <small>Block</small>
                 <strong>#{r.blockNumber}</strong>
-                <div className="muted" style={{ fontSize: '0.75rem' }}>{new Date(Number(r.blockTimestamp) * 1000).toLocaleString([], {dateStyle:'short', timeStyle:'short'})}</div>
+                <div className="muted" style={{ fontSize: '0.75rem' }}>{new Date(Number(r.blockTimestamp) * 1000).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</div>
               </div>
               <div style={{ textAlign: 'right', display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
                 <button
@@ -782,12 +782,12 @@ function QwenAgent() {
                   style={{
                     background:
                       report.status === "VERIFIED" ? "rgba(31, 122, 90, 0.12)" :
-                      report.status === "TAMPERED" ? "rgba(179, 38, 30, 0.12)" :
-                      report.status === "HASH_MISMATCH" ? "rgba(224, 138, 30, 0.12)" : "rgba(124, 111, 99, 0.12)",
+                        report.status === "TAMPERED" ? "rgba(179, 38, 30, 0.12)" :
+                          report.status === "HASH_MISMATCH" ? "rgba(224, 138, 30, 0.12)" : "rgba(124, 111, 99, 0.12)",
                     color:
                       report.status === "VERIFIED" ? "var(--emerald)" :
-                      report.status === "TAMPERED" ? "var(--red)" :
-                      report.status === "HASH_MISMATCH" ? "var(--saffron)" : "var(--muted)",
+                        report.status === "TAMPERED" ? "var(--red)" :
+                          report.status === "HASH_MISMATCH" ? "var(--saffron)" : "var(--muted)",
                     borderColor: "currentColor",
                     fontWeight: "800",
                     fontSize: "13px"
@@ -843,11 +843,10 @@ function QwenAgent() {
                       borderRadius: "6px",
                       background: "#ffffff",
                       border: "1px solid var(--line)",
-                      borderLeft: `4px solid ${
-                        kf.status === "VERIFIED" ? "var(--emerald)" :
-                        kf.status === "TAMPERED" ? "var(--red)" :
-                        kf.status === "HASH_MISMATCH" ? "var(--saffron)" : "var(--muted)"
-                      }`
+                      borderLeft: `4px solid ${kf.status === "VERIFIED" ? "var(--emerald)" :
+                          kf.status === "TAMPERED" ? "var(--red)" :
+                            kf.status === "HASH_MISMATCH" ? "var(--saffron)" : "var(--muted)"
+                        }`
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
@@ -991,7 +990,13 @@ export default function App() {
 
       <header className="nav">
         <div className="brand">
-          <ShieldCheck size={24} />
+          <img
+            src="/images/daandrishti-logo.png"
+            alt="Smart Donation System"
+            className="brand-logo"
+            width="44"
+            height="44"
+          />
           <div>
             <b>Smart Donation System</b>
             <span lang="hi">दानदृष्टि</span>
