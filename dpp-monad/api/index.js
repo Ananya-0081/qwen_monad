@@ -264,8 +264,12 @@ app.use((req, res, next) => {
 
   res.header(
     "Access-Control-Allow-Headers",
-    "Content-Type"
+    "Content-Type, Authorization"
   );
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
 
   next();
 
@@ -2364,7 +2368,7 @@ app.get(
 // QWEN INVESTIGATION AGENT (OPTIONAL / READ-ONLY)
 // ======================================================
 
-const { createInvestigationHandler } = require("./services/investigation-agent");
+const { createInvestigationHandler, createTestKeyHandler } = require("./services/investigation-agent");
 
 const investigationHandler = createInvestigationHandler({
   contract,
@@ -2377,8 +2381,12 @@ const investigationHandler = createInvestigationHandler({
   createProofHash
 });
 
+const testKeyHandler = createTestKeyHandler();
+
 app.post("/investigate", investigationHandler);
 app.post("/api/investigate", investigationHandler);
+app.post("/investigate/test-key", testKeyHandler);
+app.post("/api/investigate/test-key", testKeyHandler);
 
 
 // ======================================================

@@ -489,7 +489,7 @@ function isValidReportObject(obj) {
  */
 async function runInvestigation({ query, targetId, deps, config, fetchFn = globalThis.fetch }) {
   const investigationId = `inv_${crypto.randomBytes(8).toString("hex")}`;
-  const apiKey = (process.env.OPENROUTER_API_KEY || "").trim();
+  const apiKey = (config?.apiKey || process.env.OPENROUTER_API_KEY || "").trim();
 
   if (!apiKey) {
     throw new Error("OPENROUTER_API_KEY is not configured");
@@ -1062,17 +1062,187 @@ async function runInvestigation({ query, targetId, deps, config, fetchFn = globa
 }
 
 /**
+ * Tests an OpenRouter / Qwen API key for validity and quota status.
+ */
+async function testApiKey(apiKey, fetchFn = globalThis.fetch) {
+  const key = String(apiKey || "").trim();
+  if (!key) {
+    return {
+      valid: false,
+      status: 400,
+      code: "KEY_MISSING",
+      error: "Enter your Qwen API key to activate the agent"
+    };
+  }
+
+  try {
+    // 1. Check key with OpenRouter auth verification endpoint
+    const res = await fetchFn("https://openrouter.ai/api/v1/auth/key", {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${key}`,
+        "Content-Type": "application/json"
+      }
+    });
+
+    if (res.status === 200) {
+      let data = {};
+      try { data = await res.json(); } catch (_) {}
+      return {
+        valid: true,
+        status: 200,
+        message: "Qwen API key is valid and connected to OpenRouter.",
+        details: {
+          label: data?.data?.label || "Active Key",
+          usage: data?.data?.usage != null ? `$${Number(data.data.usage).toFixed(4)}` : undefined,
+          limit: data?.data?.limit != null ? `$${Number(data.data.limit).toFixed(2)}` : undefined,
+          isFreeTier: data?.data?.is_free_tier
+        }
+      };
+    }
+
+    if (res.status === 401 || res.status === 403) {
+      return {
+        valid: false,
+        status: 401,
+        code: "INVALID_KEY",
+        error: "Invalid Qwen API key. OpenRouter authentication failed."
+      };
+    }
+
+    if (res.status === 402) {
+      return {
+        valid: false,
+        status: 402,
+        code: "QUOTA_EXCEEDED",
+        error: "Insufficient credits or quota on this API key."
+      };
+    }
+
+    if (res.status === 429) {
+      return {
+        valid: false,
+        status: 429,
+        code: "RATE_LIMIT",
+        error: "Rate limit reached on OpenRouter for this API key."
+      };
+    }
+
+    // Fallback: minimal single-token probe
+    const probeRes = await fetchFn("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${key}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: DEFAULT_MODEL,
+        messages: [{ role: "user", content: "ping" }],
+        max_tokens: 1
+      })
+    });
+
+    if (probeRes.ok) {
+      return {
+        valid: true,
+        status: 200,
+        message: "Qwen API key is valid and model response confirmed."
+      };
+    }
+
+    if (probeRes.status === 401 || probeRes.status === 403) {
+      return {
+        valid: false,
+        status: 401,
+        code: "INVALID_KEY",
+        error: "Invalid Qwen API key. OpenRouter authentication failed."
+      };
+    }
+
+    if (probeRes.status === 402 || probeRes.status === 429) {
+      return {
+        valid: false,
+        status: probeRes.status,
+        code: probeRes.status === 402 ? "QUOTA_EXCEEDED" : "RATE_LIMIT",
+        error: probeRes.status === 402 ? "Insufficient credits on this API key." : "Rate limit reached on OpenRouter."
+      };
+    }
+
+    return {
+      valid: false,
+      status: 502,
+      code: "UPSTREAM_ERROR",
+      error: `OpenRouter returned HTTP ${probeRes.status}`
+    };
+  } catch (err) {
+    return {
+      valid: false,
+      status: 502,
+      code: "NETWORK_ERROR",
+      error: `Network failure connecting to AI provider: ${err.message}`
+    };
+  }
+}
+
+/**
+ * Route handler factory for testing Qwen API keys.
+ */
+function createTestKeyHandler(fetchFn = globalThis.fetch) {
+  return async function handleTestKey(req, res) {
+    const key = (
+      req.body?.apiKey ||
+      (req.headers?.authorization?.startsWith("Bearer ") ? req.headers.authorization.slice(7) : "") ||
+      ""
+    ).trim();
+
+    const result = await testApiKey(key, fetchFn);
+    if (!result.valid) {
+      return res.status(result.status || 400).json({
+        success: false,
+        error: result.error,
+        code: result.code || "KEY_TEST_FAILED"
+      });
+    }
+    return res.json({
+      success: true,
+      message: result.message,
+      details: result.details
+    });
+  };
+}
+
+/**
  * Express Route Handler Factory.
  */
 function createInvestigationHandler(deps) {
   return async function handleInvestigation(req, res) {
-    const config = getAgentConfig(process.env);
+    const userApiKey = (
+      req.body?.apiKey ||
+      (req.headers?.authorization?.startsWith("Bearer ") ? req.headers.authorization.slice(7) : "") ||
+      ""
+    ).trim();
 
-    // Guard: Disabled or unconfigured check
-    if (!config.enabled) {
+    const baseConfig = getAgentConfig(process.env);
+
+    // If user provided a key at runtime, activate the agent with that key
+    const effectiveConfig = userApiKey ? {
+      ...baseConfig,
+      apiKey: userApiKey,
+      enabled: true,
+      configured: true,
+      maxTokens: req.body?.maxTokens
+        ? Math.min(Math.max(Number(req.body.maxTokens) || 700, 100), 2000)
+        : (baseConfig.maxTokens > 300 ? baseConfig.maxTokens : 700)
+    } : {
+      ...baseConfig,
+      apiKey: (process.env.OPENROUTER_API_KEY || "").trim()
+    };
+
+    // Guard: Missing key / disabled check
+    if (!effectiveConfig.enabled || !effectiveConfig.apiKey) {
       return res.status(503).json({
         success: false,
-        error: "Investigation agent is disabled. To enable, set QWEN_ENABLED=true and configure OPENROUTER_API_KEY in the environment.",
+        error: "Enter your Qwen API key to activate the agent",
         code: "AGENT_DISABLED",
         enabled: false
       });
@@ -1095,7 +1265,7 @@ function createInvestigationHandler(deps) {
         query,
         targetId,
         deps,
-        config
+        config: effectiveConfig
       });
       return res.json(result);
     } catch (err) {
@@ -1119,5 +1289,7 @@ module.exports = {
   SYSTEM_PROMPT,
   executeTool,
   runInvestigation,
-  createInvestigationHandler
+  createInvestigationHandler,
+  testApiKey,
+  createTestKeyHandler
 };

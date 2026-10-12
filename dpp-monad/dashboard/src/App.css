@@ -201,6 +201,41 @@ code, time { font-family: "JetBrains Mono", monospace; }
 .btn { margin-top: 18px; display: flex; gap: 8px; align-items: center; padding: 12px 20px; border: 0; border-radius: 6px; cursor: pointer; color: #fff; font-weight: 700; background: var(--maroon); }
 .btn:hover { background: var(--red); }
 
+/* ===== Qwen AI Agent Section ===== */
+.qwen-section {
+  display: block !important;
+  margin: 32px 0;
+}
+.qwen-avatar {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--maroon);
+  border: 1px solid var(--gold);
+}
+.qwen-input:focus {
+  border-color: var(--saffron) !important;
+  box-shadow: 0 0 0 3px rgba(224, 138, 30, 0.2);
+  outline: none;
+}
+.qwen-btn-primary {
+  transition: all 0.2s ease;
+}
+.qwen-btn-primary:not(:disabled):hover {
+  background: var(--red) !important;
+  transform: translateY(-1px);
+}
+.qwen-btn-secondary {
+  transition: all 0.2s ease;
+}
+.qwen-btn-secondary:not(:disabled):hover {
+  background: #fffdf6 !important;
+  border-color: var(--saffron) !important;
+  transform: translateY(-1px);
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 900px) {
   .app .hero { grid-template-columns: 1fr; }

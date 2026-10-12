@@ -23,7 +23,9 @@ const {
   AGENT_TOOLS,
   executeTool,
   runInvestigation,
-  createInvestigationHandler
+  createInvestigationHandler,
+  testApiKey,
+  createTestKeyHandler
 } = require("../services/investigation-agent");
 
 let passed = 0;
@@ -1522,6 +1524,147 @@ async function runAllTests() {
     assert.strictEqual(res.success, true);
     assert.strictEqual(capturedBody.reasoning?.effort, "none");
     delete process.env.OPENROUTER_API_KEY;
+  });
+
+  // 9. Runtime User API Key & Key Testing
+  await test("9.1 testApiKey returns 400 KEY_MISSING when key is empty", async () => {
+    const res = await testApiKey("");
+    assert.strictEqual(res.valid, false);
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.code, "KEY_MISSING");
+  });
+
+  await test("9.2 testApiKey returns valid when OpenRouter responds 200", async () => {
+    const mockFetch = async () => ({
+      status: 200,
+      json: async () => ({
+        data: { label: "Test Key", usage: 0.05, limit: 10, is_free_tier: false }
+      })
+    });
+    const res = await testApiKey("sk-or-test-key", mockFetch);
+    assert.strictEqual(res.valid, true);
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.details.label, "Test Key");
+    assert.strictEqual(res.details.usage, "$0.0500");
+  });
+
+  await test("9.3 testApiKey handles 401 INVALID_KEY gracefully", async () => {
+    const mockFetch = async () => ({
+      status: 401,
+      json: async () => ({ error: { message: "Invalid key" } })
+    });
+    const res = await testApiKey("bad-key", mockFetch);
+    assert.strictEqual(res.valid, false);
+    assert.strictEqual(res.status, 401);
+    assert.strictEqual(res.code, "INVALID_KEY");
+  });
+
+  await test("9.4 testApiKey handles 402 QUOTA_EXCEEDED gracefully", async () => {
+    const mockFetch = async () => ({
+      status: 402,
+      json: async () => ({ error: { message: "Out of credits" } })
+    });
+    const res = await testApiKey("exhausted-key", mockFetch);
+    assert.strictEqual(res.valid, false);
+    assert.strictEqual(res.status, 402);
+    assert.strictEqual(res.code, "QUOTA_EXCEEDED");
+  });
+
+  await test("9.5 testApiKey handles 429 RATE_LIMIT gracefully", async () => {
+    const mockFetch = async () => ({
+      status: 429,
+      json: async () => ({ error: { message: "Too many requests" } })
+    });
+    const res = await testApiKey("limited-key", mockFetch);
+    assert.strictEqual(res.valid, false);
+    assert.strictEqual(res.status, 429);
+    assert.strictEqual(res.code, "RATE_LIMIT");
+  });
+
+  await test("9.6 testApiKey handles network errors gracefully", async () => {
+    const mockFetch = async () => {
+      throw new Error("getaddrinfo ENOTFOUND openrouter.ai");
+    };
+    const res = await testApiKey("any-key", mockFetch);
+    assert.strictEqual(res.valid, false);
+    assert.strictEqual(res.status, 502);
+    assert.strictEqual(res.code, "NETWORK_ERROR");
+  });
+
+  await test("9.7 createInvestigationHandler activates and passes user-provided key without server env flag", async () => {
+    delete process.env.QWEN_ENABLED;
+    delete process.env.OPENROUTER_API_KEY;
+
+    let receivedAuth = null;
+    const mockFetch = async (url, opts) => {
+      receivedAuth = opts.headers["Authorization"];
+      return {
+        status: 200,
+        ok: true,
+        text: async () => JSON.stringify({
+          choices: [{
+            message: {
+              role: "assistant",
+              content: JSON.stringify({
+                status: "VERIFIED",
+                confidence: "HIGH",
+                summary: "Audit completed with user key.",
+                keyFindings: [{ finding: "All checks passed", status: "VERIFIED", confidence: "HIGH", evidence: [] }]
+              })
+            },
+            finish_reason: "stop"
+          }]
+        }),
+        headers: { get: () => "application/json" }
+      };
+    };
+
+    // Override global fetch temporarily for this handler test
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = mockFetch;
+
+    const handler = createInvestigationHandler(mockDeps);
+    let resStatus = 200;
+    let resJson = null;
+    const req = {
+      body: {
+        apiKey: "sk-or-user-provided-key-12345",
+        query: "verify ledger integrity"
+      }
+    };
+    const res = {
+      status: (s) => { resStatus = s; return res; },
+      json: (j) => { resJson = j; return res; }
+    };
+
+    try {
+      await handler(req, res);
+      assert.strictEqual(resStatus, 200);
+      assert.strictEqual(resJson.success, true);
+      assert.strictEqual(receivedAuth, "Bearer sk-or-user-provided-key-12345");
+      assert.strictEqual(resJson.report.status, "VERIFIED");
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  await test("9.8 createInvestigationHandler returns 503 AGENT_DISABLED when key is missing", async () => {
+    delete process.env.QWEN_ENABLED;
+    delete process.env.OPENROUTER_API_KEY;
+
+    const handler = createInvestigationHandler(mockDeps);
+    let resStatus = 0;
+    let resJson = null;
+    const req = { body: { query: "investigate without key" } };
+    const res = {
+      status: (s) => { resStatus = s; return res; },
+      json: (j) => { resJson = j; return res; }
+    };
+
+    await handler(req, res);
+    assert.strictEqual(resStatus, 503);
+    assert.strictEqual(resJson.code, "AGENT_DISABLED");
+    assert.ok(resJson.error.includes("Enter your Qwen API key to activate the agent"));
   });
 
   console.log("\n============================================================");

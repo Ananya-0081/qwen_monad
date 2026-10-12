@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ShieldCheck, ShieldAlert, RefreshCw, XCircle, Link2, Cpu, Hash, Radar,
-  AlertTriangle, ExternalLink,
+  AlertTriangle, ExternalLink, Eye, EyeOff, Key, Sparkles, CheckCircle, Bot
 } from "lucide-react";
 import "./App.css";
 
@@ -444,6 +444,476 @@ function ProofExplorer({ onVerifyProof }) {
   );
 }
 
+/* ---------- Qwen AI Investigation Agent ---------- */
+function QwenAgent() {
+  const [apiKey, setApiKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const [targetId, setTargetId] = useState("");
+  const [query, setQuery] = useState("");
+
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+
+  const [running, setRunning] = useState(false);
+  const [runResult, setRunResult] = useState(null);
+  const [runError, setRunError] = useState(null);
+
+  const handleTestKey = async () => {
+    const key = apiKey.trim();
+    if (!key) return;
+    setTesting(true);
+    setTestResult(null);
+    setRunError(null);
+
+    try {
+      const res = await fetch(`${API_URL}/api/investigate/test-key`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: key })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setTestResult({
+          success: false,
+          error: data.error || `HTTP ${res.status}: Key validation failed`
+        });
+      } else {
+        setTestResult({
+          success: true,
+          message: data.message || "Qwen API key is valid and connected.",
+          details: data.details
+        });
+      }
+    } catch (err) {
+      setTestResult({
+        success: false,
+        error: `Network failure connecting to API: ${err.message}`
+      });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleRunAgent = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const key = apiKey.trim();
+    if (!key || running) return;
+
+    setRunning(true);
+    setRunError(null);
+    setRunResult(null);
+    setTestResult(null);
+
+    try {
+      const payload = {
+        apiKey: key,
+        query: query.trim() || undefined,
+        targetId: targetId.trim() || undefined,
+        maxTokens: 700
+      };
+
+      const res = await fetch(`${API_URL}/api/investigate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        let errorMsg = data.error || `Investigation failed (HTTP ${res.status})`;
+        if (res.status === 401 || data.code === "AUTH_ERROR" || data.code === "INVALID_KEY") {
+          errorMsg = "Authentication failed: Invalid Qwen / OpenRouter API key.";
+        } else if (res.status === 402 || data.code === "PAYMENT_REQUIRED" || data.code === "QUOTA_EXCEEDED") {
+          errorMsg = "Quota / Credits exceeded: Your OpenRouter account requires credits.";
+        } else if (res.status === 429 || data.code === "RATE_LIMIT") {
+          errorMsg = "Rate limit reached: Too many requests on this API key.";
+        } else if (res.status === 504 || data.code === "TIMEOUT") {
+          errorMsg = "Investigation timeout: OpenRouter took longer than deadline.";
+        }
+        setRunError({ message: errorMsg, code: data.code, diagnostics: data.diagnostics });
+      } else {
+        setRunResult(data);
+      }
+    } catch (err) {
+      setRunError({
+        message: `Network failure: Unable to connect to backend server. ${err.message}`,
+        code: "NETWORK_ERROR"
+      });
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const hasKey = apiKey.trim().length > 0;
+  const report = runResult?.report;
+
+  return (
+    <section className="qwen-section panel" style={{ marginTop: "3rem", padding: "2.2rem" }}>
+      <div className="sec-head row">
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span className="qwen-avatar"><Bot size={22} color="var(--gold-light)" /></span>
+            <h2 style={{ margin: 0 }}>Qwen AI Investigation Agent</h2>
+          </div>
+          <span className="muted" style={{ marginTop: "6px" }}>
+            Autonomous Forensic Integrity Auditor · Powered by Alibaba Qwen via OpenRouter
+          </span>
+        </div>
+        <span className="pill" style={{ background: "var(--parchment)" }}>
+          <Sparkles size={14} color="var(--saffron)" /> Read-Only Agent
+        </span>
+      </div>
+
+      <p className="qwen-desc" style={{ margin: "1rem 0 1.5rem", fontSize: "13.5px", lineHeight: "1.7", color: "#5a4e45" }}>
+        The Qwen agent operates in read-only mode to independently cross-reference the local SQLite donation ledger,
+        SHA-256 fingerprints, Monad smart contract state, and Envio HyperIndex proofs.
+        <strong> Your API key is held exclusively in browser memory and sent per-request over HTTPS. It is never stored or logged.</strong>
+      </p>
+
+      {/* API Key Input and Action Bar */}
+      <div className="qwen-key-box" style={{ background: "#fffdf6", padding: "1.5rem", borderRadius: "8px", border: "1px solid var(--line)" }}>
+        <label style={{ display: "block", fontSize: "12px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--maroon)", marginBottom: "8px" }}>
+          <Key size={14} style={{ verticalAlign: "middle", marginRight: "6px" }} />
+          Qwen / OpenRouter API Key <span style={{ color: "var(--red)" }}>*</span>
+        </label>
+
+        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ position: "relative", flex: "1", minWidth: "260px" }}>
+            <input
+              type={showKey ? "text" : "password"}
+              value={apiKey}
+              onChange={(e) => {
+                setApiKey(e.target.value);
+                setTestResult(null);
+                setRunError(null);
+              }}
+              placeholder="sk-or-v1-..."
+              autoComplete="off"
+              spellCheck="false"
+              className="v-input qwen-input"
+              style={{
+                width: "100%",
+                padding: "11px 44px 11px 14px",
+                borderRadius: "6px",
+                border: "1px solid var(--line)",
+                background: "#ffffff",
+                color: "var(--ink)",
+                fontFamily: '"JetBrains Mono", monospace',
+                fontSize: "13px"
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowKey(!showKey)}
+              aria-label={showKey ? "Hide API key" : "Show API key"}
+              title={showKey ? "Hide API key" : "Show API key"}
+              style={{
+                position: "absolute",
+                right: "8px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                padding: "6px",
+                color: "var(--muted)",
+                display: "flex",
+                alignItems: "center"
+              }}
+            >
+              {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleTestKey}
+            disabled={!hasKey || testing || running}
+            className="btn qwen-btn-secondary"
+            style={{
+              margin: 0,
+              background: "var(--parchment)",
+              color: "var(--maroon)",
+              border: "1px solid var(--line)",
+              opacity: !hasKey || testing || running ? 0.6 : 1,
+              cursor: !hasKey || testing || running ? "not-allowed" : "pointer"
+            }}
+          >
+            {testing ? <RefreshCw size={14} className="refreshed" /> : <Sparkles size={14} />}
+            {testing ? "Testing Key..." : "Test Key"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleRunAgent}
+            disabled={!hasKey || running || testing}
+            className="btn qwen-btn-primary"
+            style={{
+              margin: 0,
+              background: hasKey ? "var(--maroon)" : "#888",
+              color: "#fff",
+              opacity: !hasKey || running || testing ? 0.6 : 1,
+              cursor: !hasKey || running || testing ? "not-allowed" : "pointer"
+            }}
+          >
+            {running ? <RefreshCw size={14} className="refreshed" /> : <Radar size={15} />}
+            {running ? "Auditing Ledger..." : "Run Agent"}
+          </button>
+        </div>
+
+        {/* Required Key Warning Prompt */}
+        {!hasKey && (
+          <div className="qwen-key-missing" style={{ marginTop: "1rem", display: "flex", alignItems: "center", gap: "8px", padding: "10px 14px", borderRadius: "6px", background: "#fff6e6", border: "1px solid #ffd480", color: "#8a5700", fontSize: "12.5px", fontWeight: "600" }}>
+            <AlertTriangle size={16} color="#d9822b" />
+            <span>Enter your Qwen API key to activate the agent</span>
+          </div>
+        )}
+
+        {/* Optional Target / Filter Fields */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1rem", marginTop: "1rem", paddingTop: "1rem", borderTop: "1px dashed var(--line)" }}>
+          <div>
+            <label style={{ display: "block", fontSize: "11px", fontWeight: "600", textTransform: "uppercase", color: "var(--muted)", marginBottom: "4px" }}>
+              Target Record ID (Optional)
+            </label>
+            <input
+              type="text"
+              value={targetId}
+              onChange={(e) => setTargetId(e.target.value)}
+              placeholder="e.g. 1 or leave empty for all records"
+              className="v-input"
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                borderRadius: "6px",
+                border: "1px solid var(--line)",
+                background: "#ffffff",
+                fontSize: "12px"
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "11px", fontWeight: "600", textTransform: "uppercase", color: "var(--muted)", marginBottom: "4px" }}>
+              Inquiry / Focus Query (Optional)
+            </label>
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="e.g. Audit denomination tampering"
+              className="v-input"
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                borderRadius: "6px",
+                border: "1px solid var(--line)",
+                background: "#ffffff",
+                fontSize: "12px"
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Test Key Feedback State */}
+      {testResult && (
+        <div
+          className={`verdict ${testResult.success ? "ok" : "bad"}`}
+          style={{ marginTop: "1.25rem", width: "100%", animation: "none" }}
+        >
+          <span className="v-icon">
+            {testResult.success ? <CheckCircle size={22} /> : <AlertTriangle size={22} />}
+          </span>
+          <div>
+            <strong>{testResult.success ? "KEY VALIDATION SUCCESSFUL" : "KEY VALIDATION FAILED"}</strong>
+            <span>{testResult.message || testResult.error}</span>
+            {testResult.details && (
+              <div style={{ marginTop: "6px", fontSize: "11.5px", color: "var(--muted)", display: "flex", gap: "14px", flexWrap: "wrap" }}>
+                {testResult.details.label && <span>Key: <b>{testResult.details.label}</b></span>}
+                {testResult.details.usage && <span>Usage: <b>{testResult.details.usage}</b></span>}
+                {testResult.details.limit && <span>Limit: <b>{testResult.details.limit}</b></span>}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {running && (
+        <div className="verdict" style={{ marginTop: "1.5rem", width: "100%", borderColor: "var(--saffron)" }}>
+          <span className="v-icon" style={{ borderColor: "var(--saffron)", color: "var(--saffron)" }}>
+            <RefreshCw size={22} className="refreshed" />
+          </span>
+          <div>
+            <strong style={{ color: "var(--saffron)" }}>QWEN INVESTIGATION AGENT EXECUTING</strong>
+            <span>Running multi-turn forensic tools against SQLite, SHA-256 hashes, and Monad RPC...</span>
+          </div>
+        </div>
+      )}
+
+      {/* Error State */}
+      {runError && (
+        <div className="verdict bad" style={{ marginTop: "1.5rem", width: "100%" }}>
+          <span className="v-icon"><XCircle size={22} /></span>
+          <div>
+            <strong>INVESTIGATION ERROR {runError.code ? `(${runError.code})` : ""}</strong>
+            <span>{runError.message}</span>
+            {runError.diagnostics && (
+              <div style={{ marginTop: "6px", fontSize: "11px", color: "var(--muted)" }}>
+                Status: {runError.diagnostics.status || "N/A"} · Content-Type: {runError.diagnostics.contentType || "N/A"}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Success / Report Display */}
+      {report && (
+        <div className="qwen-report" style={{ marginTop: "2rem", background: "#fffdf6", borderRadius: "8px", border: "1px solid var(--line)", padding: "1.8rem" }}>
+          {/* Header Row: Status, Confidence, Model Metadata */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem", marginBottom: "1.5rem", paddingBottom: "1.2rem", borderBottom: "1px solid var(--line)" }}>
+            <div>
+              <span style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)", display: "block" }}>
+                Agent Finding Verdict
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "4px" }}>
+                <span
+                  className="pill"
+                  style={{
+                    background:
+                      report.status === "VERIFIED" ? "rgba(31, 122, 90, 0.12)" :
+                      report.status === "TAMPERED" ? "rgba(179, 38, 30, 0.12)" :
+                      report.status === "HASH_MISMATCH" ? "rgba(224, 138, 30, 0.12)" : "rgba(124, 111, 99, 0.12)",
+                    color:
+                      report.status === "VERIFIED" ? "var(--emerald)" :
+                      report.status === "TAMPERED" ? "var(--red)" :
+                      report.status === "HASH_MISMATCH" ? "var(--saffron)" : "var(--muted)",
+                    borderColor: "currentColor",
+                    fontWeight: "800",
+                    fontSize: "13px"
+                  }}
+                >
+                  {report.status}
+                </span>
+                <span className="pill" style={{ fontSize: "12px" }}>
+                  Confidence: <b>{report.confidence || "MEDIUM"}</b>
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              {runResult.model && (
+                <span className="pill" style={{ fontSize: "11px", fontFamily: '"JetBrains Mono", monospace' }}>
+                  {runResult.model}
+                </span>
+              )}
+              <span className="pill" style={{ fontSize: "11px" }}>
+                {runResult.iterations || 1} Turn{(runResult.iterations || 1) === 1 ? "" : "s"} · {runResult.toolsInvoked || 0} Tools
+              </span>
+              {runResult.usage?.totalTokens && (
+                <span className="pill" style={{ fontSize: "11px" }}>
+                  {runResult.usage.totalTokens} Tokens
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Executive Summary */}
+          <div style={{ marginBottom: "1.5rem" }}>
+            <h3 style={{ margin: "0 0 8px", fontSize: "16px", color: "var(--maroon)", fontFamily: "var(--serif)", fontWeight: 700 }}>
+              Executive Summary
+            </h3>
+            <p style={{ margin: 0, fontSize: "14px", lineHeight: "1.7", color: "var(--ink)" }}>
+              {report.summary}
+            </p>
+          </div>
+
+          {/* Key Findings */}
+          {Array.isArray(report.keyFindings) && report.keyFindings.length > 0 && (
+            <div style={{ marginBottom: "1.5rem" }}>
+              <h3 style={{ margin: "0 0 10px", fontSize: "15px", color: "var(--maroon)", fontFamily: "var(--serif)", fontWeight: 700 }}>
+                Forensic Findings ({report.keyFindings.length})
+              </h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {report.keyFindings.map((kf, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: "12px 16px",
+                      borderRadius: "6px",
+                      background: "#ffffff",
+                      border: "1px solid var(--line)",
+                      borderLeft: `4px solid ${
+                        kf.status === "VERIFIED" ? "var(--emerald)" :
+                        kf.status === "TAMPERED" ? "var(--red)" :
+                        kf.status === "HASH_MISMATCH" ? "var(--saffron)" : "var(--muted)"
+                      }`
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                      <span style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", color: "var(--muted)" }}>
+                        Finding #{idx + 1}
+                      </span>
+                      <span style={{ fontSize: "11px", fontWeight: "700", color: kf.status === "TAMPERED" ? "var(--red)" : "var(--emerald)" }}>
+                        {kf.status} ({kf.confidence || "MEDIUM"} CONFIDENCE)
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: "13.5px", lineHeight: "1.6", color: "var(--ink)" }}>
+                      {kf.finding}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Risks / Anomaly Vectors */}
+          {Array.isArray(report.risks) && report.risks.length > 0 && (
+            <div style={{ marginBottom: "1.2rem", padding: "12px 16px", borderRadius: "6px", background: "#fff5f1", border: "1px solid rgba(179, 38, 30, 0.25)" }}>
+              <strong style={{ display: "block", fontSize: "12px", textTransform: "uppercase", color: "var(--red)", marginBottom: "4px" }}>
+                <AlertTriangle size={13} style={{ verticalAlign: "middle", marginRight: "4px" }} />
+                Identified Risks & Anomalies
+              </strong>
+              <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "13px", color: "#6e2920" }}>
+                {report.risks.map((risk, i) => (
+                  <li key={i}>{risk}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Recommended Actions */}
+          {Array.isArray(report.recommendedActions) && report.recommendedActions.length > 0 && (
+            <div style={{ padding: "12px 16px", borderRadius: "6px", background: "#f2f9f5", border: "1px solid rgba(31, 122, 90, 0.25)" }}>
+              <strong style={{ display: "block", fontSize: "12px", textTransform: "uppercase", color: "var(--emerald)", marginBottom: "4px" }}>
+                <ShieldCheck size={13} style={{ verticalAlign: "middle", marginRight: "4px" }} />
+                Recommended Actions
+              </strong>
+              <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "13px", color: "#164d39" }}>
+                {report.recommendedActions.map((act, i) => (
+                  <li key={i}>{act}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Audit trail / Tools invoked */}
+          {Array.isArray(runResult.audit?.toolsUsed) && runResult.audit.toolsUsed.length > 0 && (
+            <div style={{ marginTop: "1.2rem", paddingTop: "1rem", borderTop: "1px dashed var(--line)", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", fontSize: "11px", color: "var(--muted)" }}>
+              <span>Tools invoked:</span>
+              {runResult.audit.toolsUsed.map((tool, idx) => (
+                <code key={idx} style={{ padding: "2px 6px", background: "#f0ebe1", borderRadius: "4px", fontSize: "11px" }}>
+                  {tool}
+                </code>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 const STEPS = [
   [Cpu, "Model scans", "ML screens each record for anomalies"],
   [Hash, "SHA-256", "The record becomes a fixed fingerprint"],
@@ -626,6 +1096,7 @@ export default function App() {
         <ProofAnalytics />
         <ProofVerifier selectedHash={selectedProof} />
         <ProofExplorer onVerifyProof={(h) => setSelectedProof(h)} />
+        <QwenAgent />
 
         <section className="flow" aria-label="How verification works">
           <div className="track"><i className="particle" /></div>
