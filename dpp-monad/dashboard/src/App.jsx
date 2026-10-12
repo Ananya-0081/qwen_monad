@@ -950,7 +950,7 @@ export default function App() {
       setUpdated(new Date());
     } catch (e) {
       console.error(e);
-      setError("Can't reach the DaanDristi API. Start the backend on port 3000, then retry.");
+      setError("Can't reach the Smart Donation System API. Start the backend on port 3000, then retry.");
     } finally {
       setLoading(false);
     }
@@ -993,7 +993,7 @@ export default function App() {
         <div className="brand">
           <ShieldCheck size={24} />
           <div>
-            <b>DaanDristi</b>
+            <b>Smart Donation System</b>
             <span lang="hi">दानदृष्टि</span>
           </div>
           <em className="muted">donation provenance</em>
@@ -1004,7 +1004,7 @@ export default function App() {
       <main>
         <section className="hero">
           <div className="hero-copy">
-            <p className="label"><i /> DAANDRISTI / DONATION PROVENANCE</p>
+            <p className="label"><i /> SMART DONATION SYSTEM / DONATION PROVENANCE</p>
             <h1>
               Every rupee given<br />
               leaves a <em>proof</em><br />
@@ -1102,14 +1102,14 @@ export default function App() {
           <div className="track"><i className="particle" /></div>
           {STEPS.map(([Icon, t, d], i) => (
             <div className="step" key={t} style={{ "--i": i }}>
-              <span className="s-icon"><Icon size={22} /></span>
-              <div><b>{t}</b><span>{d}</span></div>
+              <span className="s-icon" aria-hidden="true"><Icon size={22} /></span>
+              <div><b>{t}</b><span className="s-desc">{d}</span></div>
             </div>
           ))}
         </section>
       </main>
 
-      <footer className="foot muted">DaanDristi · Records are checked against Monad testnet proofs</footer>
+      <footer className="foot muted">Smart Donation System · Records are checked against Monad testnet proofs</footer>
     </div>
   );
 }
