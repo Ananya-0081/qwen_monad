@@ -43,6 +43,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: 20.18.0
       # All secrets must be added manually in the Render dashboard.
       # Do NOT add PRIVATE_KEY here — this is a read-only deployment.
 
