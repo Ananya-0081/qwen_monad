@@ -4,7 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "start": "node index.js",
     "test": "node tests/safe-startup.test.js"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "keywords": [],
   "author": "",
