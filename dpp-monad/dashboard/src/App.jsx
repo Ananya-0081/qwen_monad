@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import "./App.css";
 
-const API_URL = "http://localhost:3000";
+const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/+$/, "");
 
 function useCountUp(target, ms = 900) {
   const [val, setVal] = useState(target);
